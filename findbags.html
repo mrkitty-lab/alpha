@@ -1,0 +1,2189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <meta name="theme-color" content="#000000">
+
+  <title>Route QR Scanner</title>
+
+  <!--
+    qr-scanner:
+    https://github.com/nimiq/qr-scanner
+
+    The UMD build allows this to remain a single HTML file.
+  -->
+  <script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #000;
+      --panel: #111;
+      --panel2: #1b1b1b;
+      --text: #fff;
+      --muted: #999;
+      --accent: #00e676;
+      --danger: #ff453a;
+      --blue: #0a84ff;
+
+      --safe-top: env(safe-area-inset-top);
+      --safe-bottom: env(safe-area-inset-bottom);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Display",
+        "SF Pro Text",
+        Helvetica,
+        Arial,
+        sans-serif;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    /* -------------------------------------------------
+       START SCREEN
+    ------------------------------------------------- */
+
+    #startScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      padding:
+        calc(24px + var(--safe-top))
+        24px
+        calc(24px + var(--safe-bottom));
+
+      background:
+        radial-gradient(
+          circle at top,
+          #202020 0%,
+          #080808 55%,
+          #000 100%
+        );
+    }
+
+    .start-card {
+      width: min(100%, 420px);
+    }
+
+    .logo {
+      text-align: center;
+      font-size: 56px;
+      margin-bottom: 12px;
+    }
+
+    .start-title {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+
+    .start-subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.4;
+      margin-bottom: 32px;
+    }
+
+    .route-input-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #bbb;
+      margin-bottom: 8px;
+    }
+
+    #startingRoute {
+      display: block;
+      width: 100%;
+      height: 64px;
+
+      border: 2px solid #333;
+      border-radius: 16px;
+
+      background: #151515;
+      color: white;
+
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+
+      margin-bottom: 16px;
+    }
+
+    #startingRoute:focus {
+      border-color: var(--accent);
+    }
+
+    #startButton {
+      width: 100%;
+      min-height: 64px;
+
+      border-radius: 16px;
+
+      background: var(--accent);
+      color: #000;
+
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    #startButton:active {
+      transform: scale(0.98);
+    }
+
+    .start-note {
+      text-align: center;
+      color: #777;
+      font-size: 13px;
+      line-height: 1.4;
+      margin-top: 18px;
+    }
+
+    /* -------------------------------------------------
+       APP
+    ------------------------------------------------- */
+
+    #app {
+      position: fixed;
+      inset: 0;
+
+      display: none;
+      flex-direction: column;
+
+      background: #000;
+    }
+
+    #app.active {
+      display: flex;
+    }
+
+    /* -------------------------------------------------
+       HEADER
+    ------------------------------------------------- */
+
+    .header {
+      position: relative;
+      z-index: 20;
+
+      flex: 0 0 auto;
+
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      padding:
+        calc(10px + var(--safe-top))
+        16px
+        10px;
+
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .route-info {
+      min-width: 0;
+    }
+
+    .route-label {
+      color: #888;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #routeNumber {
+      font-size: 30px;
+      font-weight: 850;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    .count-box {
+      text-align: right;
+    }
+
+    #scanCount {
+      font-size: 30px;
+      font-weight: 850;
+      line-height: 1;
+    }
+
+    .count-label {
+      color: #888;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* -------------------------------------------------
+       CAMERA
+    ------------------------------------------------- */
+
+    .camera-area {
+      position: relative;
+
+      flex: 1 1 auto;
+      min-height: 0;
+
+      overflow: hidden;
+
+      background: #050505;
+    }
+
+    #qrVideo {
+      position: absolute;
+      inset: 0;
+
+      width: 100%;
+      height: 100%;
+
+      object-fit: cover;
+
+      background: #000;
+    }
+
+    /*
+      Dark overlay around scanning area.
+    */
+
+    .camera-overlay {
+      position: absolute;
+      inset: 0;
+
+      pointer-events: none;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .scan-box {
+      position: relative;
+
+      width: min(72vw, 300px);
+      aspect-ratio: 1;
+
+      border: 3px solid rgba(255, 255, 255, 0.9);
+      border-radius: 24px;
+
+      box-shadow:
+        0 0 0 9999px rgba(0, 0, 0, 0.35);
+    }
+
+    .scan-corner {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+
+      border-color: var(--accent);
+      border-style: solid;
+    }
+
+    .scan-corner.tl {
+      top: -3px;
+      left: -3px;
+      border-width: 5px 0 0 5px;
+      border-radius: 12px 0 0 0;
+    }
+
+    .scan-corner.tr {
+      top: -3px;
+      right: -3px;
+      border-width: 5px 5px 0 0;
+      border-radius: 0 12px 0 0;
+    }
+
+    .scan-corner.bl {
+      bottom: -3px;
+      left: -3px;
+      border-width: 0 0 5px 5px;
+      border-radius: 0 0 0 12px;
+    }
+
+    .scan-corner.br {
+      bottom: -3px;
+      right: -3px;
+      border-width: 0 5px 5px 0;
+      border-radius: 0 0 12px 0;
+    }
+
+    .scan-line {
+      position: absolute;
+
+      left: 8%;
+      right: 8%;
+      top: 50%;
+
+      height: 2px;
+
+      background: var(--accent);
+
+      box-shadow: 0 0 10px var(--accent);
+
+      animation: scanLine 1.8s ease-in-out infinite;
+    }
+
+    @keyframes scanLine {
+      0%,
+      100% {
+        transform: translateY(-100px);
+        opacity: 0.5;
+      }
+
+      50% {
+        transform: translateY(100px);
+        opacity: 1;
+      }
+    }
+
+    #status {
+      position: absolute;
+
+      left: 50%;
+      bottom: 18px;
+
+      transform: translateX(-50%);
+
+      max-width: calc(100% - 32px);
+
+      padding: 8px 14px;
+
+      border-radius: 999px;
+
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+
+      font-size: 13px;
+      font-weight: 600;
+
+      text-align: center;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    /* -------------------------------------------------
+       LAST SCAN
+    ------------------------------------------------- */
+
+    .last-scan {
+      position: absolute;
+
+      left: 16px;
+      right: 16px;
+      top: 16px;
+
+      display: none;
+
+      padding: 12px 14px;
+
+      border-radius: 14px;
+
+      background: rgba(0, 230, 118, 0.94);
+      color: #000;
+
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+
+      animation: scanSuccess 0.18s ease-out;
+    }
+
+    .last-scan.show {
+      display: block;
+    }
+
+    .last-scan-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.65;
+    }
+
+    #lastScanValue {
+      margin-top: 2px;
+
+      font-size: 17px;
+      font-weight: 800;
+
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    @keyframes scanSuccess {
+      from {
+        transform: scale(0.96);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    /* -------------------------------------------------
+       RECENT SCANS
+    ------------------------------------------------- */
+
+    .recent {
+      position: absolute;
+
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+
+      pointer-events: none;
+    }
+
+    .recent-item {
+      align-self: flex-start;
+
+      max-width: 90%;
+
+      padding: 6px 10px;
+
+      border-radius: 8px;
+
+      background: rgba(0, 0, 0, 0.68);
+
+      color: rgba(255, 255, 255, 0.8);
+
+      font-size: 12px;
+
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    /* -------------------------------------------------
+       CONTROLS
+    ------------------------------------------------- */
+
+    .controls {
+      position: relative;
+      z-index: 20;
+
+      flex: 0 0 auto;
+
+      display: flex;
+      gap: 8px;
+
+      padding:
+        10px
+        10px
+        calc(10px + var(--safe-bottom));
+
+      background: #0c0c0c;
+    }
+
+    .control-button {
+      min-height: 58px;
+
+      border-radius: 15px;
+
+      color: white;
+      background: #222;
+
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .control-button:active {
+      transform: scale(0.97);
+    }
+
+    #previousButton {
+      flex: 0.8;
+    }
+
+    #nextButton {
+      flex: 1.7;
+
+      background: var(--accent);
+      color: #000;
+
+      font-size: 17px;
+    }
+
+    #moreButton {
+      flex: 0.8;
+    }
+
+    /* -------------------------------------------------
+       MENU
+    ------------------------------------------------- */
+
+    #menu {
+      position: absolute;
+      z-index: 50;
+
+      right: 10px;
+      bottom: calc(78px + var(--safe-bottom));
+
+      display: none;
+
+      width: 190px;
+
+      padding: 8px;
+
+      border-radius: 16px;
+
+      background: #202020;
+
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    #menu.open {
+      display: block;
+    }
+
+    .menu-button {
+      width: 100%;
+
+      min-height: 48px;
+
+      padding: 0 12px;
+
+      border-radius: 10px;
+
+      background: transparent;
+      color: white;
+
+      text-align: left;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .menu-button:active {
+      background: #333;
+    }
+
+    .menu-button.danger {
+      color: var(--danger);
+    }
+
+    /* -------------------------------------------------
+       ERROR
+    ------------------------------------------------- */
+
+    #cameraError {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+
+      display: none;
+
+      align-items: center;
+      justify-content: center;
+
+      padding: 24px;
+
+      background: #000;
+    }
+
+    #cameraError.show {
+      display: flex;
+    }
+
+    .error-card {
+      width: min(100%, 400px);
+      text-align: center;
+    }
+
+    .error-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .error-title {
+      font-size: 23px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .error-message {
+      color: #999;
+      line-height: 1.5;
+      font-size: 15px;
+      margin-bottom: 20px;
+    }
+
+    #retryCamera {
+      min-height: 52px;
+      padding: 0 24px;
+
+      border-radius: 14px;
+
+      background: white;
+      color: black;
+
+      font-weight: 750;
+    }
+
+    /* -------------------------------------------------
+       TOAST
+    ------------------------------------------------- */
+
+    #toast {
+      position: fixed;
+      z-index: 200;
+
+      left: 50%;
+      bottom: calc(90px + var(--safe-bottom));
+
+      transform: translate(-50%, 20px);
+
+      width: max-content;
+      max-width: calc(100% - 32px);
+
+      padding: 11px 16px;
+
+      border-radius: 999px;
+
+      background: white;
+      color: black;
+
+      font-size: 14px;
+      font-weight: 750;
+
+      opacity: 0;
+      pointer-events: none;
+
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    /* -------------------------------------------------
+       LANDSCAPE
+    ------------------------------------------------- */
+
+    @media (orientation: landscape) {
+      .scan-box {
+        width: min(45vh, 280px);
+      }
+
+      .header {
+        padding-top: 8px;
+        padding-bottom: 8px;
+      }
+
+      .controls {
+        padding-top: 6px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ===============================================
+       START SCREEN
+  ================================================ -->
+
+  <section id="startScreen">
+
+    <div class="start-card">
+
+      <div class="logo">▣</div>
+
+      <div class="start-title">
+        Route Scanner
+      </div>
+
+      <div class="start-subtitle">
+        Enter the first route number and start scanning.
+      </div>
+
+      <label
+        class="route-input-label"
+        for="startingRoute"
+      >
+        Starting route number
+      </label>
+
+      <input
+        id="startingRoute"
+        type="number"
+        inputmode="numeric"
+        pattern="[0-9]*"
+        autocomplete="off"
+        placeholder="101"
+      >
+
+      <button id="startButton">
+        Start Scanning
+      </button>
+
+      <div class="start-note">
+        Camera access is required.<br>
+        Your scan data stays on this device.
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ===============================================
+       MAIN APP
+  ================================================ -->
+
+  <main id="app">
+
+    <!-- HEADER -->
+
+    <header class="header">
+
+      <div class="route-info">
+
+        <div class="route-label">
+          Route
+        </div>
+
+        <div id="routeNumber">
+          —
+        </div>
+
+      </div>
+
+      <div class="count-box">
+
+        <div id="scanCount">
+          0
+        </div>
+
+        <div class="count-label">
+          Scanned
+        </div>
+
+      </div>
+
+    </header>
+
+
+    <!-- CAMERA -->
+
+    <section class="camera-area">
+
+      <video
+        id="qrVideo"
+        playsinline
+        muted
+        autoplay
+      ></video>
+
+      <div class="camera-overlay">
+
+        <div class="scan-box">
+
+          <div class="scan-corner tl"></div>
+          <div class="scan-corner tr"></div>
+          <div class="scan-corner bl"></div>
+          <div class="scan-corner br"></div>
+
+          <div class="scan-line"></div>
+
+        </div>
+
+      </div>
+
+
+      <!-- Last successful scan -->
+
+      <div
+        id="lastScan"
+        class="last-scan"
+      >
+
+        <div class="last-scan-label">
+          Added
+        </div>
+
+        <div id="lastScanValue">
+          —
+        </div>
+
+      </div>
+
+
+      <!-- Recent scans -->
+
+      <div
+        id="recent"
+        class="recent"
+      ></div>
+
+
+      <div id="status">
+        Starting camera…
+      </div>
+
+
+      <!-- Camera error -->
+
+      <div id="cameraError">
+
+        <div class="error-card">
+
+          <div class="error-icon">
+            📷
+          </div>
+
+          <div class="error-title">
+            Camera unavailable
+          </div>
+
+          <div
+            id="cameraErrorMessage"
+            class="error-message"
+          >
+            Please allow camera access and try again.
+          </div>
+
+          <button id="retryCamera">
+            Try Again
+          </button>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- BOTTOM CONTROLS -->
+
+    <nav class="controls">
+
+      <button
+        id="previousButton"
+        class="control-button"
+        aria-label="Previous route"
+      >
+        ←
+      </button>
+
+      <button
+        id="nextButton"
+        class="control-button"
+      >
+        Next Route →
+      </button>
+
+      <button
+        id="moreButton"
+        class="control-button"
+      >
+        ⋮
+      </button>
+
+    </nav>
+
+
+    <!-- MENU -->
+
+    <div id="menu">
+
+      <button
+        id="exportJson"
+        class="menu-button"
+      >
+        Export JSON
+      </button>
+
+      <button
+        id="exportCsv"
+        class="menu-button"
+      >
+        Export CSV
+      </button>
+
+      <button
+        id="clearData"
+        class="menu-button danger"
+      >
+        Clear All Data
+      </button>
+
+    </div>
+
+  </main>
+
+
+  <!-- TOAST -->
+
+  <div id="toast"></div>
+
+
+  <script>
+    /* =================================================
+       STATE
+    ================================================= */
+
+    const STORAGE_KEY = "route-qr-scanner-v1";
+
+    let currentRoute = null;
+
+    /*
+      routes is:
+
+      {
+        "101": ["QR1", "QR2"],
+        "102": ["QR3"]
+      }
+
+      We keep arrays for easy exporting.
+
+      During scanning we additionally use Sets for
+      extremely fast duplicate checking.
+    */
+
+    let routes = {};
+
+    let routeSets = {};
+
+    let scanner = null;
+
+    let wakeLock = null;
+
+    let toastTimer = null;
+
+    let lastSuccessfulValue = null;
+
+    let lastSuccessfulTime = 0;
+
+    /*
+      Prevent the exact same QR from being accepted
+      repeatedly immediately after detection.
+
+      This is separate from duplicate storage so that
+      a QR being held in front of the camera doesn't
+      hammer the UI/storage.
+    */
+    const DUPLICATE_COOLDOWN_MS = 700;
+
+
+    /* =================================================
+       DOM
+    ================================================= */
+
+    const startScreen =
+      document.getElementById("startScreen");
+
+    const startingRoute =
+      document.getElementById("startingRoute");
+
+    const startButton =
+      document.getElementById("startButton");
+
+    const app =
+      document.getElementById("app");
+
+    const video =
+      document.getElementById("qrVideo");
+
+    const routeNumber =
+      document.getElementById("routeNumber");
+
+    const scanCount =
+      document.getElementById("scanCount");
+
+    const nextButton =
+      document.getElementById("nextButton");
+
+    const previousButton =
+      document.getElementById("previousButton");
+
+    const moreButton =
+      document.getElementById("moreButton");
+
+    const menu =
+      document.getElementById("menu");
+
+    const exportJson =
+      document.getElementById("exportJson");
+
+    const exportCsv =
+      document.getElementById("exportCsv");
+
+    const clearData =
+      document.getElementById("clearData");
+
+    const status =
+      document.getElementById("status");
+
+    const recent =
+      document.getElementById("recent");
+
+    const lastScan =
+      document.getElementById("lastScan");
+
+    const lastScanValue =
+      document.getElementById("lastScanValue");
+
+    const toast =
+      document.getElementById("toast");
+
+    const cameraError =
+      document.getElementById("cameraError");
+
+    const cameraErrorMessage =
+      document.getElementById("cameraErrorMessage");
+
+    const retryCamera =
+      document.getElementById("retryCamera");
+
+
+    /* =================================================
+       INITIAL LOAD
+    ================================================= */
+
+    loadData();
+
+    /*
+      If there is saved data, restore the last route
+      as the suggested starting route.
+    */
+
+    if (currentRoute !== null) {
+      startingRoute.value = currentRoute;
+    }
+
+
+    /* =================================================
+       START APP
+    ================================================= */
+
+    startButton.addEventListener("click", async () => {
+
+      const value =
+        Number.parseInt(
+          startingRoute.value,
+          10
+        );
+
+      if (!Number.isFinite(value)) {
+        showToast("Enter a route number");
+        startingRoute.focus();
+        return;
+      }
+
+      currentRoute = value;
+
+      ensureRoute(currentRoute);
+
+      saveData();
+
+      startScreen.style.display = "none";
+
+      app.classList.add("active");
+
+      updateUI();
+
+      await requestWakeLock();
+
+      await startScanner();
+
+    });
+
+
+    /*
+      Allow pressing Enter in the route field.
+    */
+
+    startingRoute.addEventListener("keydown", event => {
+
+      if (event.key === "Enter") {
+        startButton.click();
+      }
+
+    });
+
+
+    /* =================================================
+       SCANNER
+    ================================================= */
+
+    async function startScanner() {
+
+      cameraError.classList.remove("show");
+
+      status.textContent = "Starting camera…";
+
+      try {
+
+        /*
+          Reuse existing scanner if possible.
+        */
+
+        if (!scanner) {
+
+          scanner = new QrScanner(
+            video,
+
+            result => {
+
+              /*
+                qr-scanner's detailed result format
+                is:
+
+                {
+                  data,
+                  cornerPoints
+                }
+              */
+
+              const value =
+                typeof result === "string"
+                  ? result
+                  : result.data;
+
+              handleScan(value);
+
+            },
+
+            {
+              preferredCamera: "environment",
+
+              /*
+                25 is the library default.
+
+                This is intentionally high enough
+                for rapid scanning without trying to
+                decode hundreds of frames per second.
+              */
+              maxScansPerSecond: 25,
+
+              returnDetailedScanResult: true,
+
+              /*
+                Restrict scanning to the center region.
+                This can substantially reduce the amount
+                of image the decoder needs to analyze.
+              */
+              calculateScanRegion: video => {
+
+                const width =
+                  video.videoWidth;
+
+                const height =
+                  video.videoHeight;
+
+                const size =
+                  Math.min(width, height) * 0.68;
+
+                return {
+                  x: (width - size) / 2,
+                  y: (height - size) / 2,
+                  width: size,
+                  height: size,
+                  downScaledWidth: 420,
+                  downScaledHeight: 420
+                };
+
+              },
+
+              onDecodeError: () => {
+                /*
+                  Expected.
+
+                  Most frames don't contain a QR code.
+                  Don't display errors for those frames.
+                */
+              }
+
+            }
+
+          );
+
+        }
+
+
+        await scanner.start();
+
+        status.textContent =
+          "Point camera at a QR code";
+
+      }
+      catch (error) {
+
+        console.error(
+          "Camera error:",
+          error
+        );
+
+        let message =
+          "Could not start the camera.";
+
+        if (
+          location.protocol !== "https:" &&
+          location.hostname !== "localhost" &&
+          location.hostname !== "127.0.0.1"
+        ) {
+
+          message =
+            "Camera access requires HTTPS. Open this page over HTTPS on your iPhone.";
+
+        }
+        else if (
+          error &&
+          (
+            error.name === "NotAllowedError" ||
+            error.name === "PermissionDeniedError"
+          )
+        ) {
+
+          message =
+            "Camera permission was denied. Allow camera access in Safari settings and try again.";
+
+        }
+
+        cameraErrorMessage.textContent = message;
+
+        cameraError.classList.add("show");
+
+      }
+
+    }
+
+
+    retryCamera.addEventListener(
+      "click",
+      startScanner
+    );
+
+
+    /* =================================================
+       HANDLE QR SCAN
+    ================================================= */
+
+    function handleScan(value) {
+
+      if (!value) {
+        return;
+      }
+
+      value = String(value).trim();
+
+      if (!value) {
+        return;
+      }
+
+
+      const now = Date.now();
+
+
+      /*
+        Very short debounce.
+
+        This prevents the same QR from being processed
+        repeatedly while the decoder is seeing the same
+        physical code.
+
+        It does NOT prevent the user from scanning the
+        same QR again later — the Set handles that.
+      */
+
+      if (
+        value === lastSuccessfulValue &&
+        now - lastSuccessfulTime <
+          DUPLICATE_COOLDOWN_MS
+      ) {
+
+        return;
+
+      }
+
+
+      lastSuccessfulValue = value;
+
+      lastSuccessfulTime = now;
+
+
+      ensureRoute(currentRoute);
+
+
+      const set =
+        routeSets[currentRoute];
+
+
+      /*
+        Duplicate?
+
+        Do nothing.
+
+        This is O(1).
+      */
+
+      if (set.has(value)) {
+
+        status.textContent =
+          "Already scanned";
+
+        return;
+
+      }
+
+
+      /*
+        Add to route.
+      */
+
+      set.add(value);
+
+      routes[currentRoute].push(value);
+
+
+      saveData();
+
+      updateUI();
+
+      showSuccessfulScan(value);
+
+      provideFeedback();
+
+    }
+
+
+    /* =================================================
+       ROUTES
+    ================================================= */
+
+    function ensureRoute(route) {
+
+      const key =
+        String(route);
+
+      if (!routes[key]) {
+        routes[key] = [];
+      }
+
+      if (!routeSets[key]) {
+        routeSets[key] =
+          new Set(routes[key]);
+      }
+
+    }
+
+
+    function nextRoute() {
+
+      currentRoute =
+        Number(currentRoute) + 1;
+
+      ensureRoute(currentRoute);
+
+      saveData();
+
+      updateUI();
+
+      /*
+        IMPORTANT:
+
+        We intentionally DO NOT restart the camera.
+
+        Scanner stays alive continuously.
+      */
+
+      status.textContent =
+        `Scanning Route ${currentRoute}`;
+
+      showToast(
+        `Route ${currentRoute}`
+      );
+
+    }
+
+
+    function previousRoute() {
+
+      const previous =
+        Number(currentRoute) - 1;
+
+      /*
+        Don't go below 1.
+      */
+
+      if (previous < 1) {
+        return;
+      }
+
+      currentRoute = previous;
+
+      ensureRoute(currentRoute);
+
+      saveData();
+
+      updateUI();
+
+      status.textContent =
+        `Scanning Route ${currentRoute}`;
+
+      showToast(
+        `Route ${currentRoute}`
+      );
+
+    }
+
+
+    nextButton.addEventListener(
+      "click",
+      nextRoute
+    );
+
+    previousButton.addEventListener(
+      "click",
+      previousRoute
+    );
+
+
+    /* =================================================
+       UI
+    ================================================= */
+
+    function updateUI() {
+
+      routeNumber.textContent =
+        currentRoute;
+
+      const count =
+        routes[currentRoute]
+          ? routes[currentRoute].length
+          : 0;
+
+      scanCount.textContent =
+        count;
+
+      renderRecentScans();
+
+    }
+
+
+    function renderRecentScans() {
+
+      recent.innerHTML = "";
+
+      const values =
+        routes[currentRoute] || [];
+
+      const recentValues =
+        values.slice(-3).reverse();
+
+      recentValues.forEach(value => {
+
+        const element =
+          document.createElement("div");
+
+        element.className =
+          "recent-item";
+
+        element.textContent =
+          value;
+
+        recent.appendChild(element);
+
+      });
+
+    }
+
+
+    function showSuccessfulScan(value) {
+
+      lastScanValue.textContent =
+        value;
+
+      lastScan.classList.add("show");
+
+      status.textContent =
+        "QR code added ✓";
+
+      /*
+        Hide success banner after a moment.
+      */
+
+      clearTimeout(
+        showSuccessfulScan.timer
+      );
+
+      showSuccessfulScan.timer =
+        setTimeout(() => {
+
+          lastScan.classList.remove(
+            "show"
+          );
+
+          status.textContent =
+            "Point camera at a QR code";
+
+        }, 1100);
+
+    }
+
+
+    /* =================================================
+       FEEDBACK
+    ================================================= */
+
+    function provideFeedback() {
+
+      /*
+        Haptic feedback.
+
+        iPhone Safari support varies, so this is
+        deliberately optional.
+      */
+
+      if (
+        "vibrate" in navigator
+      ) {
+
+        try {
+          navigator.vibrate(35);
+        }
+        catch (_) {}
+
+      }
+
+
+      /*
+        Short audio beep.
+
+        AudioContext needs to be created/resumed
+        after a user interaction on iOS.
+      */
+
+      try {
+
+        if (!provideFeedback.audioContext) {
+
+          provideFeedback.audioContext =
+            new (
+              window.AudioContext ||
+              window.webkitAudioContext
+            )();
+
+        }
+
+        const context =
+          provideFeedback.audioContext;
+
+        if (
+          context.state === "suspended"
+        ) {
+
+          context.resume();
+
+        }
+
+        const oscillator =
+          context.createOscillator();
+
+        const gain =
+          context.createGain();
+
+        oscillator.type =
+          "sine";
+
+        oscillator.frequency.value =
+          880;
+
+        gain.gain.setValueAtTime(
+          0.0001,
+          context.currentTime
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+          0.12,
+          context.currentTime + 0.01
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+          0.0001,
+          context.currentTime + 0.08
+        );
+
+        oscillator.connect(gain);
+
+        gain.connect(context.destination);
+
+        oscillator.start();
+
+        oscillator.stop(
+          context.currentTime + 0.09
+        );
+
+      }
+      catch (_) {
+        /*
+          Audio is optional.
+        */
+      }
+
+    }
+
+
+    /* =================================================
+       LOCAL STORAGE
+    ================================================= */
+
+    function saveData() {
+
+      const data = {
+        currentRoute,
+        routes
+      };
+
+      try {
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(data)
+        );
+
+      }
+      catch (error) {
+
+        console.error(
+          "Could not save data:",
+          error
+        );
+
+        showToast(
+          "Storage error"
+        );
+
+      }
+
+    }
+
+
+    function loadData() {
+
+      try {
+
+        const raw =
+          localStorage.getItem(
+            STORAGE_KEY
+          );
+
+        if (!raw) {
+          return;
+        }
+
+        const data =
+          JSON.parse(raw);
+
+        if (
+          data &&
+          typeof data === "object"
+        ) {
+
+          currentRoute =
+            Number.isFinite(
+              Number(data.currentRoute)
+            )
+              ? Number(data.currentRoute)
+              : null;
+
+          routes =
+            data.routes &&
+            typeof data.routes === "object"
+              ? data.routes
+              : {};
+
+          routeSets = {};
+
+          Object.keys(routes).forEach(
+            route => {
+
+              if (
+                !Array.isArray(
+                  routes[route]
+                )
+              ) {
+
+                routes[route] = [];
+
+              }
+
+              routeSets[route] =
+                new Set(
+                  routes[route]
+                );
+
+            }
+          );
+
+        }
+
+      }
+      catch (error) {
+
+        console.error(
+          "Could not load saved data:",
+          error
+        );
+
+        routes = {};
+
+        routeSets = {};
+
+      }
+
+    }
+
+
+    /* =================================================
+       WAKE LOCK
+    ================================================= */
+
+    async function requestWakeLock() {
+
+      if (
+        !("wakeLock" in navigator)
+      ) {
+
+        return;
+
+      }
+
+      try {
+
+        wakeLock =
+          await navigator.wakeLock.request(
+            "screen"
+          );
+
+      }
+      catch (_) {}
+
+    }
+
+
+    /*
+      iOS/browser may release the wake lock when the
+      page becomes hidden.
+    */
+
+    document.addEventListener(
+      "visibilitychange",
+      async () => {
+
+        if (
+          document.visibilityState ===
+          "visible" &&
+          app.classList.contains("active")
+        ) {
+
+          await requestWakeLock();
+
+        }
+
+      }
+    );
+
+
+    /* =================================================
+       MENU
+    ================================================= */
+
+    moreButton.addEventListener(
+      "click",
+      event => {
+
+        event.stopPropagation();
+
+        menu.classList.toggle(
+          "open"
+        );
+
+      }
+    );
+
+
+    document.addEventListener(
+      "click",
+      event => {
+
+        if (
+          !menu.contains(event.target) &&
+          event.target !== moreButton
+        ) {
+
+          menu.classList.remove(
+            "open"
+          );
+
+        }
+
+      }
+    );
+
+
+    /* =================================================
+       EXPORT JSON
+    ================================================= */
+
+    exportJson.addEventListener(
+      "click",
+      () => {
+
+        const exportData = {
+          exportedAt:
+            new Date().toISOString(),
+
+          routes: routes
+        };
+
+        downloadFile(
+          JSON.stringify(
+            exportData,
+            null,
+            2
+          ),
+
+          `routes-${dateStamp()}.json`,
+
+          "application/json"
+        );
+
+        menu.classList.remove(
+          "open"
+        );
+
+        showToast(
+          "JSON exported"
+        );
+
+      }
+    );
+
+
+    /* =================================================
+       EXPORT CSV
+    ================================================= */
+
+    exportCsv.addEventListener(
+      "click",
+      () => {
+
+        const rows = [
+          [
+            "Route",
+            "QR Value",
+            "Sequence"
+          ]
+        ];
+
+
+        Object.keys(routes)
+          .sort(
+            (a, b) =>
+              Number(a) - Number(b)
+          )
+          .forEach(route => {
+
+            routes[route].forEach(
+              (value, index) => {
+
+                rows.push([
+                  route,
+                  value,
+                  index + 1
+                ]);
+
+              }
+            );
+
+          });
+
+
+        const csv =
+          rows
+            .map(row =>
+              row
+                .map(csvEscape)
+                .join(",")
+            )
+            .join("\n");
+
+
+        downloadFile(
+          csv,
+          `routes-${dateStamp()}.csv`,
+          "text/csv;charset=utf-8"
+        );
+
+
+        menu.classList.remove(
+          "open"
+        );
+
+        showToast(
+          "CSV exported"
+        );
+
+      }
+    );
+
+
+    function csvEscape(value) {
+
+      const text =
+        String(value);
+
+      if (
+        /[",\n\r]/.test(text)
+      ) {
+
+        return `"${text.replace(
+          /"/g,
+          '""'
+        )}"`;
+
+      }
+
+      return text;
+
+    }
+
+
+    /* =================================================
+       CLEAR DATA
+    ================================================= */
+
+    clearData.addEventListener(
+      "click",
+      () => {
+
+        menu.classList.remove(
+          "open"
+        );
+
+        const confirmed =
+          confirm(
+            "Delete every route and QR code stored on this device?"
+          );
+
+        if (!confirmed) {
+          return;
+        }
+
+        routes = {};
+
+        routeSets = {};
+
+        ensureRoute(
+          currentRoute
+        );
+
+        saveData();
+
+        updateUI();
+
+        showToast(
+          "All data cleared"
+        );
+
+      }
+    );
+
+
+    /* =================================================
+       DOWNLOAD
+    ================================================= */
+
+    function downloadFile(
+      content,
+      filename,
+      mimeType
+    ) {
+
+      const blob =
+        new Blob(
+          [content],
+          {
+            type: mimeType
+          }
+        );
+
+      const url =
+        URL.createObjectURL(blob);
+
+      const link =
+        document.createElement("a");
+
+      link.href = url;
+
+      link.download =
+        filename;
+
+      document.body.appendChild(
+        link
+      );
+
+      link.click();
+
+      link.remove();
+
+      setTimeout(
+        () =>
+          URL.revokeObjectURL(url),
+        1000
+      );
+
+    }
+
+
+    function dateStamp() {
+
+      const date =
+        new Date();
+
+      const year =
+        date.getFullYear();
+
+      const month =
+        String(
+          date.getMonth() + 1
+        ).padStart(2, "0");
+
+      const day =
+        String(
+          date.getDate()
+        ).padStart(2, "0");
+
+      return `${year}-${month}-${day}`;
+
+    }
+
+
+    /* =================================================
+       TOAST
+    ================================================= */
+
+    function showToast(message) {
+
+      toast.textContent =
+        message;
+
+      toast.classList.add(
+        "show"
+      );
+
+      clearTimeout(
+        toastTimer
+      );
+
+      toastTimer =
+        setTimeout(
+          () => {
+
+            toast.classList.remove(
+              "show"
+            );
+
+          },
+          1500
+        );
+
+    }
+
+
+    /* =================================================
+       CLEANUP
+    ================================================= */
+
+    window.addEventListener(
+      "pagehide",
+      () => {
+
+        if (scanner) {
+
+          try {
+            scanner.stop();
+          }
+          catch (_) {}
+
+        }
+
+        if (wakeLock) {
+
+          try {
+            wakeLock.release();
+          }
+          catch (_) {}
+
+        }
+
+      }
+    );
+
+  </script>
+
+</body>
+</html>
