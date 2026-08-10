@@ -430,7 +430,7 @@
       border-radius: 14px;
 
       background: rgba(180, 0, 230, 0.94);
-      color: #000;
+      color: #fffefe;
 
       box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
 
@@ -699,7 +699,7 @@
       border-radius: 999px;
 
       background: white;
-      color: black;
+      color: rgb(0, 0, 0);
 
       font-size: 14px;
       font-weight: 750;
@@ -738,7 +738,6 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-
 <body>
 
   <!-- ===============================================
@@ -950,12 +949,11 @@
     <div id="menu">
 
       <button
-        id="exportJson"
+        id="uploadResults"
         class="menu-button"
       >
-        Export
+        Upload Results
       </button>
-
 
       <button
         id="clearData"
@@ -1880,78 +1878,92 @@
 
 
     /* =================================================
-       EXPORT JSON
+       SUPABASE UPLOAD
     ================================================= */
-     const SUPABASE_URL =
-  "https://ekhjtyrgedwojcehmmur.supabase.co";
 
-const SUPABASE_ANON_KEY =
-  "sb_publishable_XTwFB9ADNwW9m470kwVVfw_0Cb_jhE0";
+    const SUPABASE_URL =
+      "https://ekhjtyrgedwojcehmmur.supabase.co";
 
-const { createClient } = supabase;
+    const SUPABASE_ANON_KEY =
+      "sb_publishable_XTwFB9ADNwW9m470kwVVfw_0Cb_jhE0";
 
-const client = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+    const supabaseClient =
+      window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY
+      );
 
+    const uploadSessionId =
+      (crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
-async function uploadResults(jsonData) {
+    const uploadResultsButton =
+      document.getElementById("uploadResults");
 
-  const file = new Blob(
-    [
-      JSON.stringify(
-        jsonData,
-        null,
-        2
-      )
-    ],
-    {
-      type: "application/json"
-    }
-  );
+    async function uploadResults() {
 
-  const {
-    data,
-    error
-  } = await client
-    .storage
-    .from("results")
-    .upload(
-      "latest.json",
-      file,
-      {
-        contentType: "application/json",
-        upsert: true
+      if (!currentRoute) {
+        showToast("Start scanning first");
+        return;
       }
-    );
 
-  if (error) {
+      uploadResultsButton.disabled = true;
+      uploadResultsButton.textContent = "Uploading…";
 
-    console.error(
-      "Upload failed:",
-      error
-    );
+      try {
 
-    alert(
-      "Upload failed: " +
-      error.message
-    );
+        const payload = {
+          uploadedAt: new Date().toISOString(),
+          currentRoute: currentRoute,
+          routes: routes
+        };
 
-    return false;
-  }
+        /* Blob exists only in memory; no local file is created. */
+        const blob = new Blob(
+          [JSON.stringify(payload, null, 2)],
+          { type: "application/json" }
+        );
 
-  console.log(
-    "Upload successful:",
-    data
-  );
+        const path = `sessions/${uploadSessionId}.json`;
 
-  alert(
-    "Upload successful!"
-  );
+        const { error } = await supabaseClient
+          .storage
+          .from("results")
+          .upload(
+            path,
+            blob,
+            {
+              contentType: "application/json",
+              upsert: true,
+              cacheControl: "0"
+            }
+          );
 
-  return true;
-}
+        if (error) throw error;
+
+        showToast("Results uploaded ✓");
+        status.textContent = "Results uploaded successfully";
+
+      } catch (error) {
+
+        console.error("Upload failed:", error);
+        showToast("Upload failed");
+        status.textContent = error?.message || "Upload failed";
+
+      } finally {
+
+        uploadResultsButton.disabled = false;
+        uploadResultsButton.textContent = "Upload Results";
+
+      }
+    }
+
+    uploadResultsButton.addEventListener("click", async () => {
+      menu.classList.remove("open");
+      await uploadResults();
+    });
+
 
     /* =================================================
        CLEAR DATA
@@ -1992,75 +2004,6 @@ async function uploadResults(jsonData) {
 
       }
     );
-
-
-    /* =================================================
-       DOWNLOAD
-    ================================================= */
-
-    function downloadFile(
-      content,
-      filename,
-      mimeType
-    ) {
-
-      const blob =
-        new Blob(
-          [content],
-          {
-            type: mimeType
-          }
-        );
-
-      const url =
-        URL.createObjectURL(blob);
-
-      const link =
-        document.createElement("a");
-
-      link.href = url;
-
-      link.download =
-        filename;
-
-      document.body.appendChild(
-        link
-      );
-
-      link.click();
-
-      link.remove();
-
-      setTimeout(
-        () =>
-          URL.revokeObjectURL(url),
-        1000
-      );
-
-    }
-
-
-    function dateStamp() {
-
-      const date =
-        new Date();
-
-      const year =
-        date.getFullYear();
-
-      const month =
-        String(
-          date.getMonth() + 1
-        ).padStart(2, "0");
-
-      const day =
-        String(
-          date.getDate()
-        ).padStart(2, "0");
-
-      return `${year}-${month}-${day}`;
-
-    }
 
 
     /* =================================================
