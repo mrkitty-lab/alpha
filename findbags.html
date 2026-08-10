@@ -27,7 +27,7 @@
       --panel2: #1b1b1b;
       --text: #fff;
       --muted: #999;
-      --accent: #00e676;
+      --accent: #c400e6;
       --danger: #ff453a;
       --blue: #0a84ff;
 
@@ -429,7 +429,7 @@
 
       border-radius: 14px;
 
-      background: rgba(0, 230, 118, 0.94);
+      background: rgba(180, 0, 230, 0.94);
       color: #000;
 
       box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
@@ -736,6 +736,7 @@
       }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -952,15 +953,9 @@
         id="exportJson"
         class="menu-button"
       >
-        Export JSON
+        Export
       </button>
 
-      <button
-        id="exportCsv"
-        class="menu-button"
-      >
-        Export CSV
-      </button>
 
       <button
         id="clearData"
@@ -1887,130 +1882,76 @@
     /* =================================================
        EXPORT JSON
     ================================================= */
+     const SUPABASE_URL =
+  "https://ekhjtyrgedwojcehmmur.supabase.co";
 
-    exportJson.addEventListener(
-      "click",
-      () => {
+const SUPABASE_ANON_KEY =
+  "sb_publishable_XTwFB9ADNwW9m470kwVVfw_0Cb_jhE0";
 
-        const exportData = {
-          exportedAt:
-            new Date().toISOString(),
+const { createClient } = supabase;
 
-          routes: routes
-        };
-
-        downloadFile(
-          JSON.stringify(
-            exportData,
-            null,
-            2
-          ),
-
-          `routes-${dateStamp()}.json`,
-
-          "application/json"
-        );
-
-        menu.classList.remove(
-          "open"
-        );
-
-        showToast(
-          "JSON exported"
-        );
-
-      }
-    );
+const client = createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
 
 
-    /* =================================================
-       EXPORT CSV
-    ================================================= */
+async function uploadResults(jsonData) {
 
-    exportCsv.addEventListener(
-      "click",
-      () => {
-
-        const rows = [
-          [
-            "Route",
-            "QR Value",
-            "Sequence"
-          ]
-        ];
-
-
-        Object.keys(routes)
-          .sort(
-            (a, b) =>
-              Number(a) - Number(b)
-          )
-          .forEach(route => {
-
-            routes[route].forEach(
-              (value, index) => {
-
-                rows.push([
-                  route,
-                  value,
-                  index + 1
-                ]);
-
-              }
-            );
-
-          });
-
-
-        const csv =
-          rows
-            .map(row =>
-              row
-                .map(csvEscape)
-                .join(",")
-            )
-            .join("\n");
-
-
-        downloadFile(
-          csv,
-          `routes-${dateStamp()}.csv`,
-          "text/csv;charset=utf-8"
-        );
-
-
-        menu.classList.remove(
-          "open"
-        );
-
-        showToast(
-          "CSV exported"
-        );
-
-      }
-    );
-
-
-    function csvEscape(value) {
-
-      const text =
-        String(value);
-
-      if (
-        /[",\n\r]/.test(text)
-      ) {
-
-        return `"${text.replace(
-          /"/g,
-          '""'
-        )}"`;
-
-      }
-
-      return text;
-
+  const file = new Blob(
+    [
+      JSON.stringify(
+        jsonData,
+        null,
+        2
+      )
+    ],
+    {
+      type: "application/json"
     }
+  );
 
+  const {
+    data,
+    error
+  } = await client
+    .storage
+    .from("results")
+    .upload(
+      "latest.json",
+      file,
+      {
+        contentType: "application/json",
+        upsert: true
+      }
+    );
+
+  if (error) {
+
+    console.error(
+      "Upload failed:",
+      error
+    );
+
+    alert(
+      "Upload failed: " +
+      error.message
+    );
+
+    return false;
+  }
+
+  console.log(
+    "Upload successful:",
+    data
+  );
+
+  alert(
+    "Upload successful!"
+  );
+
+  return true;
+}
 
     /* =================================================
        CLEAR DATA
